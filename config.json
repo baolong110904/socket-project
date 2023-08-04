@@ -1,0 +1,8 @@
+{
+    "method": ["GET", "POST", "HEAD"],
+    "whitelist": ["example.com", "oosc.online", "vbsca.ca"],
+    "time": {
+        "start": "08:00:00",
+        "end": "20:00:00"
+    }
+}
