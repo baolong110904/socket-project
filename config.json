@@ -4,5 +4,9 @@
     "time": {
         "start": "08:00:00",
         "end": "20:00:00"
+    },
+    "cache": {
+        "types": ["apng", "avif", "gif", "jpeg", "jpg", "png", "svg", "webp"],
+        "time": "1"
     }
 }

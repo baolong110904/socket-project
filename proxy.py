@@ -2,7 +2,18 @@ from socket import *
 from threading import *
 from datetime import *
 import json
+import time
+import os
 
+def ClearCache(caches):
+    while True:
+        # Check per 30 seconds
+        time.sleep(30)
+        now = datetime.now()
+        for file in caches:
+            if now > file['time']:
+                os.remove('cache/' + file['name'])
+                
 def Validate(req, config, message):
     # Empty req
     if not req:
@@ -25,37 +36,55 @@ def Validate(req, config, message):
     # Accept
     return True
 
-def Connect(tcpCliSock):
-# Get request from browser
+def Connect(tcpCliSock, caches):
+    # Get request from browser
     req = tcpCliSock.recv(2 ** 20)
     # Validate
     message = ['']
     if Validate(req, config, message):
         # If accepted
-        print('Request:')
-        print(req.decode(errors = 'ignore'))
+        print('Sending request for', req.decode().split()[1])
         # Get requested file name
         fileName = req.decode().split()[1]
+        fileInCache = fileName.replace('http://', '').replace('/', '_')
         try:
             # Find req file in cache
-            f = open(fileName)
+            f = open('cache/' + fileInCache, 'rb')
+            print('Found', fileName, 'in cache')
+            # Read data
+            res = f.read()
+            # Send data to browser
+            tcpCliSock.send(res)
         except IOError: # When file not found in cache
             # Get web server address
             hostn = req.decode().split()[4]
-            print('HOST', hostn)
             # Create connection to web server
             webCliSock = socket(AF_INET, SOCK_STREAM)
             webCliSock.connect((hostn, 80))
             # Send request
             webCliSock.send(req)
-            # Receive response and send back to browser
-            print('Response:')
+            # Check type of file
+            fileType = fileName.split('.')[-1]
+            if fileType in config['cache']['types']:
+                # Create cache file
+                cache = open('cache/' + fileInCache, 'wb')
+                # Add to cache list
+                caches.append({
+                    'name': fileInCache,
+                    'time': datetime.now() + timedelta(minutes = int(config['cache']['time']))
+                })
+            # Receive response
             while True:
                 res = webCliSock.recv(2 ** 20)
                 if not res:
                     break
-                print(res.decode(errors = 'ignore'))
+                print('Received response for', req.decode().split()[1])
+                # Write to cache file
+                if fileType in config['cache']['types']:
+                    cache.write(res)
+                # Send response to browser
                 tcpCliSock.send(res)
+
             # Close connect to web sever
             webCliSock.close()
     else:
@@ -79,6 +108,14 @@ def Connect(tcpCliSock):
 configFile = open('config.json')
 config = json.load(configFile)
 
+# Reset cache folder
+for file in os.listdir('cache'):
+    os.remove('cache/' + file)
+# Cache files handle
+caches = []
+cacheThread = Thread(target = ClearCache, args = [caches])
+cacheThread.start()
+
 # Create sever
 tcpSerSock = socket(AF_INET, SOCK_STREAM)
 tcpSerSock.bind(('', 8000))
@@ -88,7 +125,6 @@ print('Proxy is listening...')
 while True:
     # Accept connect form browser
     tcpCliSock, addr = tcpSerSock.accept()
-    print('Received a connection from:', addr)
     # Create new thread and run
-    thread = Thread(target = Connect, args = [tcpCliSock])
+    thread = Thread(target = Connect, args = [tcpCliSock, caches])
     thread.start()
