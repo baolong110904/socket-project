@@ -39,7 +39,6 @@ def Validate(req, config, message):
 def Connect(tcpCliSock, caches):
     # Get request from browser
     req = tcpCliSock.recv(2 ** 20)
-    print(req)
     # Validate
     message = ['']
     if Validate(req, config, message):
@@ -65,7 +64,7 @@ def Connect(tcpCliSock, caches):
             # Send request
             webCliSock.send(req)
             # Check type of file
-            fileType = fileName.split('.')[-1]
+            fileType = fileName.split('.')[-1]  
             if fileType in config['cache']['types']:
                 # Create cache file
                 cache = open('cache/' + fileInCache, 'wb')
@@ -77,14 +76,13 @@ def Connect(tcpCliSock, caches):
             # Receive response
             while True:
                 res = webCliSock.recv(2 ** 20)
-                print(res)
+                
                 if not res:
                     break
                 print('Received response for', req.decode().split()[1])
                 # Write to cache file
                 if fileType in config['cache']['types']:
-                    header, body = res.split(b'\r\n\r\n', 1)
-                    cache.write(body)
+                    cache.write(res)
                 # Send response to browser
                 tcpCliSock.send(res)
 
