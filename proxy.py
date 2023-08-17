@@ -39,7 +39,6 @@ def Validate(req, config, message):
 def Connect(tcpCliSock, caches):
     # Get request from browser
     req = tcpCliSock.recv(2 ** 20)
-    print(req)
     # Validate
     message = ['']
     if Validate(req, config, message):
@@ -77,7 +76,6 @@ def Connect(tcpCliSock, caches):
             # Receive response
             while True:
                 res = webCliSock.recv(2 ** 20)
-                print(res)
                 if not res:
                     break
                 print('Received response for', req.decode().split()[1])
