@@ -16,6 +16,7 @@ def ClearCache(caches):
         for file in caches:
             if now > file['time']:
                 os.remove('cache/' + file['name'])
+                caches.remove(file)
                 
 def Validate(req, config):
     # Empty req
@@ -26,9 +27,9 @@ def Validate(req, config):
     if method not in config['method']:
         return 'Invalid method'
     # Whitelist
-    # hostn = req.decode().split()[4]
-    # if hostn not in config['whitelist']:
-    #     return 'You are not allowed to access this page'
+    hostn = req.decode().split()[4]
+    if hostn not in config['whitelist']:
+        return 'You are not allowed to access this page'
     # Time
     now = str(datetime.now().time())
     if now < config['time']['start'] or now > config['time']['end']:
@@ -61,46 +62,48 @@ def Connect(tcpCliSock, caches):
     validateMsg = Validate(req, config)
     if validateMsg == 'Accept':
         # If accepted
-
         # Get requested file name
         fileName = req.decode().split()[1]
-        # print('Sending request for', fileName)
+        print('Sending request for', fileName)
         fileInCache = fileName.replace('http://', '').replace('/', '_').replace('?', '_')
         try:
             # Find req file in cache
             f = open('cache/' + fileInCache, 'rb')
-            # print('Found', fileName, 'in cache')
+            print('Found', fileName, 'in cache')
             # Read data
-            res = f.read()
+            cacheContent = f.read()
             # Send data to browser
+            res = b'HTTP/1.1 200 OK\r\nContent-Type: image\r\n\r\n' + cacheContent
             tcpCliSock.send(res)
         except IOError: # When file not found in cache
             # Get web server address
             hostn = req.decode().split()[4]
             # Create connection to web server
             webCliSock = socket(AF_INET, SOCK_STREAM)
-            try:
-                webCliSock.connect((hostn, 80))
-            except:
-                return
+            webCliSock.connect((hostn, 80))
             # Send request
             webCliSock.send(req)
             # Receive first data
             res = webCliSock.recv(4096)
             # print('Received response for', fileName)
             # Check response type
-            if res.find(b'Content-Length: ') != -1:
+            if b'Content-Length: ' in res:
                 # Content length
                 length = int(res.split(b'Content-Length: ')[1].split(b'\r\n')[0])
                 while len(res) < length:
                     # Receive data till get full response
                     res += webCliSock.recv(4096)
                     # print('Received response for', fileName)
-            elif res.find(b'Transfer-Encoding: chunked') != -1:
+            elif b'Transfer-Encoding: chunked' in res:
                 # Chunked
-                chunk_header = webCliSock.recv(4096)
-                print(chunk_header)
+                # print(res.decode(errors='ignore'))
+                # while True:
+                #     chunk = webCliSock.recv(4096)
+                #     print(chunk.decode(errors='ignore'))
+                #     if chunk == b'':
+                #         break
                 pass
+
             # Check type of file
             fileType = fileName.split('.')[-1]
             if fileType in config['cache']['types']:
