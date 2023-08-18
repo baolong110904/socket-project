@@ -5,6 +5,9 @@ import json
 import time
 import os
 
+HOST = 'localhost'
+PORT = 8000
+
 def ClearCache(caches):
     while True:
         # Check per 30 seconds
@@ -14,43 +17,59 @@ def ClearCache(caches):
             if now > file['time']:
                 os.remove('cache/' + file['name'])
                 
-def Validate(req, config, message):
+def Validate(req, config):
     # Empty req
     if not req:
-        return False
+        return 'Empty request'
     # Method
     method = req.decode().split()[0]
     if method not in config['method']:
-        message[0] = 'Invalid method'
-        return False
+        return 'Invalid method'
     # Whitelist
-    hostn = req.decode().split()[4].replace('www.', '')
-    if hostn not in config['whitelist']:
-        message[0] = 'You are not allowed to access this page'
-        return False
+    # hostn = req.decode().split()[4]
+    # if hostn not in config['whitelist']:
+    #     return 'You are not allowed to access this page'
     # Time
     now = str(datetime.now().time())
     if now < config['time']['start'] or now > config['time']['end']:
-        message[0] = 'It is time for bed'
-        return False
+        return 'It is time for bed'
     # Accept
-    return True
+    return 'Accept'
 
 def Connect(tcpCliSock, caches):
     # Get request from browser
-    req = tcpCliSock.recv(2 ** 20)
+    req = tcpCliSock.recv(4096)
+
+    # If using localhost
+    if HOST + ':' + str(PORT) in req.decode():
+        # Change localhost request to normal request
+        req = req.decode()
+        if 'Referer: ' not in req:
+            # First request
+            hostn = req.split()[1].split('/')[1].replace('www.', '')
+            req = req.replace(HOST + ':' + str(PORT), hostn)
+            # Change request file
+            req = req.replace('/', 'http://', 1)
+        else:
+            # Following request
+            referer = req.split('Referer: ')[1].split('\r\n')[0]
+            hostn = referer.split(HOST + ':' + str(PORT) + '/')[1].split('/')[0]
+            req = req.replace(HOST + ':' + str(PORT), hostn)
+        req = req.encode()
+
     # Validate
-    message = ['']
-    if Validate(req, config, message):
+    validateMsg = Validate(req, config)
+    if validateMsg == 'Accept':
         # If accepted
-        print('Sending request for', req.decode().split()[1])
+
         # Get requested file name
         fileName = req.decode().split()[1]
-        fileInCache = fileName.replace('http://', '').replace('/', '_')
+        # print('Sending request for', fileName)
+        fileInCache = fileName.replace('http://', '').replace('/', '_').replace('?', '_')
         try:
             # Find req file in cache
             f = open('cache/' + fileInCache, 'rb')
-            print('Found', fileName, 'in cache')
+            # print('Found', fileName, 'in cache')
             # Read data
             res = f.read()
             # Send data to browser
@@ -60,9 +79,28 @@ def Connect(tcpCliSock, caches):
             hostn = req.decode().split()[4]
             # Create connection to web server
             webCliSock = socket(AF_INET, SOCK_STREAM)
-            webCliSock.connect((hostn, 80))
+            try:
+                webCliSock.connect((hostn, 80))
+            except:
+                return
             # Send request
             webCliSock.send(req)
+            # Receive first data
+            res = webCliSock.recv(4096)
+            # print('Received response for', fileName)
+            # Check response type
+            if res.find(b'Content-Length: ') != -1:
+                # Content length
+                length = int(res.split(b'Content-Length: ')[1].split(b'\r\n')[0])
+                while len(res) < length:
+                    # Receive data till get full response
+                    res += webCliSock.recv(4096)
+                    # print('Received response for', fileName)
+            elif res.find(b'Transfer-Encoding: chunked') != -1:
+                # Chunked
+                chunk_header = webCliSock.recv(4096)
+                print(chunk_header)
+                pass
             # Check type of file
             fileType = fileName.split('.')[-1]
             if fileType in config['cache']['types']:
@@ -73,28 +111,22 @@ def Connect(tcpCliSock, caches):
                     'name': fileInCache,
                     'time': datetime.now() + timedelta(minutes = int(config['cache']['time']))
                 })
-            # Receive response
-            while True:
-                res = webCliSock.recv(2 ** 20)
-                if not res:
-                    break
-                print('Received response for', req.decode().split()[1])
                 # Write to cache file
-                if fileType in config['cache']['types']:
-                    header, body = res.split(b'\r\n\r\n', 1)
-                    cache.write(body)
-                # Send response to browser
-                tcpCliSock.send(res)
+                body = res.split(b'\r\n\r\n', 1)[1]
+                cache.write(body)
+                cache.close()
 
+            # Send response to browser
+            tcpCliSock.sendall(res)
+            # print('Sent response for', fileName)
             # Close connect to web sever
             webCliSock.close()
     else:
         # 403 FORBIDDEN
-
         # Read 403 html
         f = open('assets/403.html')
         forbiddenHTML = f.read()
-        forbiddenHTML = forbiddenHTML.replace('MESSAGE_PLACEHOLDER', message[0])
+        forbiddenHTML = forbiddenHTML.replace('MESSAGE_PLACEHOLDER', validateMsg)
         # Send 403 to browser
         forbiddenRes = b'HTTP/1.1 403 Forbidden\r\nContent-Type: text/html\r\n\r\n' + forbiddenHTML.encode()
         tcpCliSock.send(forbiddenRes)
@@ -122,8 +154,8 @@ cacheThread.start()
 
 # Create sever
 tcpSerSock = socket(AF_INET, SOCK_STREAM)
-tcpSerSock.bind(('', 8000))
-tcpSerSock.listen()
+tcpSerSock.bind((HOST, PORT))
+tcpSerSock.listen(10)
 print('Proxy is listening...')
 
 while True:

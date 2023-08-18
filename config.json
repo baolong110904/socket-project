@@ -1,6 +1,6 @@
 {
     "method": ["GET", "POST", "HEAD"],
-    "whitelist": ["example.com", "oosc.online", "vbsca.ca"],
+    "whitelist": ["example.com", "oosc.online", "vbsca.ca", "testphp.vulnweb.com", "frogfind.com"],
     "time": {
         "start": "08:00:00",
         "end": "20:00:00"
