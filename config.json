@@ -7,6 +7,6 @@
     },
     "cache": {
         "types": ["apng", "avif", "gif", "jpeg", "jpg", "png", "svg", "webp"],
-        "time": "1"
+        "time": "5"
     }
 }

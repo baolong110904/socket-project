@@ -110,8 +110,11 @@ configFile = open('config.json')
 config = json.load(configFile)
 
 # Reset cache folder
-for file in os.listdir('cache'):
-    os.remove('cache/' + file)
+try :
+    for file in os.listdir('cache'):
+        os.remove('cache/' + file)
+except:
+    os.mkdir('cache')
 # Cache files handle
 caches = []
 cacheThread = Thread(target = ClearCache, args = [caches])
