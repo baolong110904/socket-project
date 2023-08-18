@@ -90,19 +90,61 @@ def Connect(tcpCliSock, caches):
             if b'Content-Length: ' in res:
                 # Content length
                 length = int(res.split(b'Content-Length: ')[1].split(b'\r\n')[0])
-                while len(res) < length:
-                    # Receive data till get full response
-                    res += webCliSock.recv(4096)
-                    # print('Received response for', fileName)
+                header_end_index = res.find(b'\r\n\r\n')
+
+                if header_end_index != -1:
+                    # Split header and body
+                    header_data = res[:header_end_index + 4]
+                    body = res[header_end_index + 4:]
+
+                    # Save the response header to a text file
+                    header_filename = 'cache/' + fileInCache + '.txt'
+                    with open(header_filename, 'wb') as header_file:
+                        header_file.write(header_data)
+
+                    # Send the response header to the browser
+                    tcpCliSock.send(header_data)
+
+                    # Send the response body to the browser
+                    tcpCliSock.send(body)
+
+                    # Receive remaining response body data
+                    while len(body) < length:
+                        remaining_data = webCliSock.recv(4096)
+                        if not remaining_data:
+                            break
+                        body += remaining_data
+
+                    # Send the remaining response body to the browser
+                    tcpCliSock.send(body)
+
             elif b'Transfer-Encoding: chunked' in res:
-                # Chunked
-                # print(res.decode(errors='ignore'))
-                # while True:
-                #     chunk = webCliSock.recv(4096)
-                #     print(chunk.decode(errors='ignore'))
-                #     if chunk == b'':
-                #         break
-                pass
+                print("Response has chunked encoding")
+                 # Add Transfer-Encoding: chunked to response headers
+                response = res.replace(b'Content-Length', b'Transfer-Encoding: chunked\r\nContent-Length')
+                
+                # Save headers to a text file
+                header_filename = 'cache/' + fileInCache + '.txt'
+                with open(header_filename, 'wb') as header_file:
+                    header_file.write(response)
+                
+                # Send the response header to the browser
+                tcpCliSock.send(response)
+
+                # Process and send the chunked response body
+                while True:
+                    chunk_header = webCliSock.recv(2 ** 20)
+                    if not chunk_header:
+                        break
+                    chunk_size = int(chunk_header, 16)
+                    if chunk_size == 0:
+                        break
+                    chunk = webCliSock.recv(chunk_size)
+                    # Send the chunk to the browser
+                    tcpCliSock.send(chunk_header + chunk)
+
+                # Send the final chunk
+                tcpCliSock.send(b'0\r\n\r\n')
 
             # Check type of file
             fileType = fileName.split('.')[-1]
