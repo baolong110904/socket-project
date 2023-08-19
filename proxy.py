@@ -136,7 +136,12 @@ def Connect(tcpCliSock, caches):
                     chunk_header = webCliSock.recv(2 ** 20)
                     if not chunk_header:
                         break
-                    chunk_size = int(chunk_header, 16)
+                    try:
+                        chunk_size = int(chunk_header, 16)
+                    except ValueError:
+                        print("Chunk size:", chunk_header)
+                        break
+                            
                     if chunk_size == 0:
                         break
                     chunk = webCliSock.recv(chunk_size)
