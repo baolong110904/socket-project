@@ -19,14 +19,3 @@ Run server
 ```sh
 python proxy.py
 ```
-Link Report: https://www.overleaf.com/read/kcvqrcpghgrm
-
-## Stages
-### Stage 1
-**Long**: write report
-**Long & Dung**:  browse web with proxy
-**Bao**: HTTP req
-
-**Deadline: Sat August 6**
-
-## Materials
